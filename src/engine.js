@@ -29,6 +29,38 @@ const zipDownload = async (items, name) => {
   save(await zip.generateAsync({ type: 'blob' }), name, 'application/zip');
   return `${items.length} files downloaded in a ZIP`;
 };
+import { PDFDocument, degrees, rgb, StandardFonts } from 'pdf-lib';
+import JSZip from 'jszip';
+import { createQpdfRunner } from 'qpdf-run';
+import qpdfWorkerUrl from 'qpdf-run/worker?url';
+import qpdfJsUrl from 'qpdf-run/qpdf.js?url';
+import wasmUrl from 'qpdf-run/qpdf.wasm?url';
+
+const bytes = async file => new Uint8Array(await file.arrayBuffer());
+const pdf = async file => PDFDocument.load(await bytes(file));
+const stem = name => name.replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '-').slice(0, 80) || 'file';
+export const save = (data, name, type, items = []) => {
+  const blob = data instanceof Blob ? data : new Blob([data], { type });
+  reportOutput(name, blob, items);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a'); link.href = url; link.download = name; document.body.appendChild(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+};
+const canvasBlob = (canvas, type, quality) => new Promise((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error('Your browser cannot export this format.')), type, quality));
+const loadImage = file => new Promise((resolve, reject) => {
+  const url = URL.createObjectURL(file), img = new Image();
+  img.onload = () => { URL.revokeObjectURL(url); resolve(img); }; img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read image. Try JPG, PNG or WebP.')); }; img.src = url;
+});
+const makeCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+const imageOutput = async (canvas, type, quality, filename) => {
+  const blob = await canvasBlob(canvas, type, quality); save(blob, filename, type);
+  return `${formatBytes(blob.size)} downloaded`;
+};
+const zipDownload = async (items, name) => {
+  const zip = new JSZip(); items.forEach(([filename, data]) => zip.file(filename, data));
+  save(await zip.generateAsync({ type: 'blob' }), name, 'application/zip', items.map(([filename, data]) => ({ name: filename, bytes: data.size ?? data.byteLength })));
+  return `${items.length} files downloaded in a ZIP`;
+};
 function parsePages(text, count, { unique = false } = {}) {
   if (!text.trim()) throw new Error('Enter page numbers, for example 1-3,5.');
   const out = [];
@@ -92,10 +124,29 @@ export async function runTool(id, files, opts) {
       else ctx.drawImage(img,0,0,w,h);
       if (id === 'grayscale') { const pixels=ctx.getImageData(0,0,w,h); for(let j=0;j<pixels.data.length;j+=4){const avg=Math.round(pixels.data[j]*.299+pixels.data[j+1]*.587+pixels.data[j+2]*.114);pixels.data[j]=pixels.data[j+1]=pixels.data[j+2]=avg;}ctx.putImageData(pixels,0,0); }
       if (id === 'image-watermark') {if (!opts.text.trim()) throw new Error('Enter watermark text.');ctx.save();ctx.globalAlpha=.55;ctx.fillStyle='#fff';ctx.strokeStyle='#242424';ctx.lineWidth=Math.max(2,w/400);ctx.font=`bold ${Math.max(18,Math.round(w/20))}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.strokeText(opts.text.slice(0,80),w/2,h/2);ctx.fillText(opts.text.slice(0,80),w/2,h/2);ctx.restore();}
-      const blob = await canvasBlob(c, type, Number(opts.quality)/100);
+      let blob = await canvasBlob(c, type, Number(opts.quality)/100);
+      if(id === 'compress' && opts.targetKB?.trim()) {
+        const targetBytes = int(opts.targetKB, 'Target size (KB)', 1, 102400) * 1024;
+        if (blob.size > targetBytes) {
+          let best = blob, work = c, originalWidth = c.width, originalHeight = c.height;
+          for (let scale = 1; scale >= .2; scale *= .8) {
+            if (scale < 1) {
+              const next = makeCanvas(Math.max(1, Math.round(originalWidth * scale)), Math.max(1, Math.round(originalHeight * scale)));
+              const nx = next.getContext('2d'); nx.fillStyle = '#fff'; nx.fillRect(0,0,next.width,next.height);nx.drawImage(c,0,0,next.width,next.height);work=next;
+            }
+            for (let quality = Math.min(.9,Number(opts.quality)/100); quality >= .19; quality -= .12) {
+              const candidate = await canvasBlob(work,'image/jpeg',quality);
+              if (candidate.size < best.size) best = candidate;
+              if (candidate.size <= targetBytes) { best = candidate; break; }
+            }
+            if (best.size <= targetBytes) break;
+          }
+          blob = best;
+        }
+      }
       outputs.push([`${stem(f.name)}-${id}.${ext}`, blob]);
     }
-    if (outputs.length === 1) { save(outputs[0][1],outputs[0][0],outputs[0][1].type); return `${(outputs[0][1].size/1024).toFixed(0)} KB downloaded`; }
+    if (outputs.length === 1) { save(outputs[0][1],outputs[0][0],outputs[0][1].type); return `${formatBytes(outputs[0][1].size)} downloaded`; }
     return zipDownload(outputs, `${id}-images.zip`);
   }
   if (['pdf-images','merge','split','extract','rotate-pdf','reorder','protect','unlock','change-password','delete-pages','reverse-pdf','duplicate-page','pdf-watermark','page-numbers','pdf-text','pdf-metadata'].includes(id)) {
