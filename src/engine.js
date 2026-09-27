@@ -1,12 +1,10 @@
 import { PDFDocument, degrees, rgb, StandardFonts } from 'pdf-lib';
-import * as pdfjs from 'pdfjs-dist';
 import JSZip from 'jszip';
 import { createQpdfRunner } from 'qpdf-run';
 import qpdfWorkerUrl from 'qpdf-run/worker?url';
 import qpdfJsUrl from 'qpdf-run/qpdf.js?url';
 import wasmUrl from 'qpdf-run/qpdf.wasm?url';
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
 const bytes = async file => new Uint8Array(await file.arrayBuffer());
 const pdf = async file => PDFDocument.load(await bytes(file));
 const stem = name => name.replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '-').slice(0, 80) || 'file';
@@ -110,8 +108,9 @@ export async function runTool(id, files, opts) {
       if (id === 'unlock') return qpdf(file, [`--password=${old}`, '--decrypt', '--', 'input.pdf', 'unlocked.pdf'], 'unlocked.pdf');
       return qpdf(file, [`--password=${old}`, '--encrypt', next, next, '256', '--', 'input.pdf', 'new-password.pdf'], 'new-password.pdf');
     }
-    if (id === 'pdf-text') { const source=await pdfjs.getDocument({data:await bytes(file),useSystemFonts:true}).promise; const parts=[]; try{for(let n=1;n<=source.numPages;n++){const content=await (await source.getPage(n)).getTextContent();parts.push(`--- Page ${n} ---\n`+content.items.map(i=>i.str).join(' '));}}finally{await source.destroy();}save(new Blob([parts.join('\n\n')],{type:'text/plain'}),`${stem(file.name)}.txt`,'text/plain');return `${parts.length} page(s) exported as text (OCR not included)`; }
+    if (id === 'pdf-text') { const pdfjs=await import('pdfjs-dist'); pdfjs.GlobalWorkerOptions.workerSrc=new URL('pdfjs-dist/build/pdf.worker.min.mjs',import.meta.url).href; const source=await pdfjs.getDocument({data:await bytes(file),useSystemFonts:true}).promise; const parts=[]; try{for(let n=1;n<=source.numPages;n++){const content=await (await source.getPage(n)).getTextContent();parts.push(`--- Page ${n} ---\n`+content.items.map(i=>i.str).join(' '));}}finally{await source.destroy();}save(new Blob([parts.join('\n\n')],{type:'text/plain'}),`${stem(file.name)}.txt`,'text/plain');return `${parts.length} page(s) exported as text (OCR not included)`; }
     if (id === 'pdf-images') {
+      const pdfjs=await import('pdfjs-dist');pdfjs.GlobalWorkerOptions.workerSrc=new URL('pdfjs-dist/build/pdf.worker.min.mjs',import.meta.url).href;
       const source = await pdfjs.getDocument({ data: await bytes(file), useSystemFonts:true }).promise;
       const selected = opts.pages.trim() ? parsePages(opts.pages, source.numPages, {unique:true}).map(x => x+1) : Array.from({length:source.numPages},(_,i)=>i+1);
       const result=[];

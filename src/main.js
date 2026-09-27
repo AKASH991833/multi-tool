@@ -1,5 +1,4 @@
 import './style.css';
-import { runTool } from './engine.js';
 const tools = [
   ['Images','compress','Compress photo','Reduce file size, optionally downscale'],
   ['Images','convert','Convert image','Make JPG, PNG or WebP'],
@@ -30,8 +29,27 @@ const tools = [
   ['Text','json','JSON formatter','Pretty print or minify JSON'],
   ['Text','password','Password generator','Create a random password'],
   ['Text','duplicate-lines','Remove duplicate lines','Keep the first occurrence'],
-  ['Text','url-encode','URL text encode / decode','Handle special URL characters']
+  ['Text','url-encode','URL text encode / decode','Handle special URL characters'],
+  ['Text','line-sort','Sort lines','Alphabetical and natural-number order'],
+  ['Text','line-reverse','Reverse lines','Put the last line first'],
+  ['Text','find-replace','Find and replace','Replace exact matching text'],
+  ['Text','whitespace-clean','Clean whitespace','Trim lines and extra spaces'],
+  ['Text','text-to-html','Escape text as HTML','Keep pasted text safe in markup'],
+  ['Text','base64-text','Base64 text','Encode or decode UTF-8 text'],
+  ['Text','markdown-preview','Markdown headings to HTML','Plain safe HTML output, not full Markdown'],
+  ['Text','hash-text','Hash text','SHA-256 or SHA-512 digest'],
+  ['Files','hash-file','Hash a file','SHA-256 or SHA-512 digest'],
+  ['Files','file-size','File size report','Names, sizes and file types'],
+  ['Files','file-rename','Batch rename files','Sequential names inside a ZIP'],
+  ['Files','zip-files','Create ZIP','Bundle files for sharing'],
+  ['Files','unzip-files','Repack ZIP safely','Download ZIP contents in a new ZIP'],
+  ['Files','data-url','File to data URL','Embed a small file as text'],
+  ['Utility','uuid','UUID generator','Random version 4 IDs'],
+  ['Utility','timestamp','Timestamp converter','UTC and Unix times'],
+  ['Utility','color','HEX to RGB/HSL','Convert a six-digit color'],
+  ['Utility','aspect-ratio','Aspect ratio calculator','Find proportional image height']
 ];
+const extraIds=new Set(['line-sort','line-reverse','find-replace','whitespace-clean','text-to-html','base64-text','markdown-preview','hash-text','hash-file','file-size','file-rename','zip-files','unzip-files','data-url','uuid','timestamp','color','aspect-ratio']);
 const description = Object.fromEntries(tools.map(x=>[x[1],x]));
 const $ = s=>document.querySelector(s);
 const escape = value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -46,8 +64,10 @@ function fields(id) {
   const formats = select('format','Output format',[['image/jpeg','JPG'],['image/png','PNG'],['image/webp','WebP']]);
   const imageTypes= ['compress','convert','resize','crop','rotate-image','image-pdf','grayscale','image-watermark'];
   const pdfTypes= ['pdf-images','merge','split','extract','rotate-pdf','protect','unlock','change-password','reorder','delete-pages','reverse-pdf','duplicate-page','pdf-watermark','page-numbers','pdf-text','pdf-metadata'];
-  const fileField = imageTypes.includes(id)||pdfTypes.includes(id) ? `<label class="drop"><span>Choose ${imageTypes.includes(id)?'image':'PDF'} ${['merge','image-pdf'].includes(id)?'files':'file'}${['compress','convert','resize','crop','rotate-image'].includes(id)?' (one or more)':''}</span><input name="files" type="file" accept="${imageTypes.includes(id)?'image/*':'.pdf,application/pdf'}" ${['merge','image-pdf','compress','convert','resize','crop','rotate-image'].includes(id)?'multiple':''} required><small id="files-hint">Nothing selected</small></label>` : '';
+  const extraFileTypes=['hash-file','file-size','file-rename','zip-files','unzip-files','data-url'];
+  const fileField = imageTypes.includes(id)||pdfTypes.includes(id) ? `<label class="drop"><span>Choose ${imageTypes.includes(id)?'image':'PDF'} ${['merge','image-pdf'].includes(id)?'files':'file'}${['compress','convert','resize','crop','rotate-image'].includes(id)?' (one or more)':''}</span><input name="files" type="file" accept="${imageTypes.includes(id)?'image/*':'.pdf,application/pdf'}" ${['merge','image-pdf','compress','convert','resize','crop','rotate-image'].includes(id)?'multiple':''} required><small id="files-hint">Nothing selected</small></label>` : extraFileTypes.includes(id) ? `<label class="drop"><span>Choose ${['file-size','file-rename','zip-files'].includes(id)?'files':'file'}</span><input name="files" type="file" ${['file-size','file-rename','zip-files'].includes(id)?'multiple':''} ${id==='unzip-files'?'accept=".zip,application/zip"':''} required><small id="files-hint">Nothing selected</small></label>` : '';
   const textBox = '<label>Text<textarea name="text" rows="8" placeholder="Paste your text here"></textarea></label>';
+  const fileAny = '<label class="drop"><span>Choose files</span><input name="files" type="file" multiple required><small id="files-hint">Nothing selected</small></label>'; 
   const map = {
     compress:width+quality, convert:formats+quality, resize:width+height+'<label class="check"><input type="checkbox" name="keepRatio" checked> Keep original proportions</label>'+quality,
     crop:width+height, 'rotate-image':angle+'<label class="check"><input type="checkbox" name="flip"> Flip horizontally</label>',
@@ -69,7 +89,17 @@ function fields(id) {
     'text-stats':textBox, case:textBox+select('case','Transform',[['upper','UPPERCASE'],['lower','lowercase'],['title','Title Case'],['trim','Trim extra spaces']]),
     json:textBox+select('format','Output',[['pretty','Pretty print'],['minify','Minify']]),
     password:input('length','Password length',20,'number','min="8" max="128"'),
-    'duplicate-lines':textBox, 'url-encode':textBox+select('format','Action',[['encode','Encode'],['decode','Decode']])
+    'duplicate-lines':textBox, 'url-encode':textBox+select('format','Action',[['encode','Encode'],['decode','Decode']]),
+    'line-sort':textBox,'line-reverse':textBox,'whitespace-clean':textBox,'text-to-html':textBox,'markdown-preview':textBox,
+    'find-replace':textBox+input('find','Find','')+input('replace','Replace with',''),
+    'base64-text':textBox+select('mode','Action',[['encode','Encode'],['decode','Decode']]),
+    'hash-text':textBox+select('algorithm','Algorithm',[['SHA-256','SHA-256'],['SHA-512','SHA-512']]),
+    'hash-file':select('algorithm','Algorithm',[['SHA-256','SHA-256'],['SHA-512','SHA-512']]),
+    'file-rename':input('prefix','Filename prefix','file'),
+    uuid:input('count','How many?',5,'number','min="1" max="100"'),
+    timestamp:input('date','Date and time (local)','2026-09-28T12:00','datetime-local'),
+    color:input('color','Hex color','#368e7a','text'),
+    'aspect-ratio':input('width','Original width',1920,'number')+input('height','Original height',1080,'number')+input('newWidth','New width',800,'number')
   };
   return fileField + `<div class="fields">${map[id]||''}</div>`;
 }
@@ -88,7 +118,7 @@ function open(id){
   if(ratio&&height){height.disabled=true;ratio.onchange=()=>height.disabled=ratio.checked;}
   renderCards(); if(window.innerWidth<900) $('#workspace').scrollIntoView({behavior:'smooth',block:'start'});
 }
-$('#app').innerHTML=`<header class="site-header"><div class="brand"><span class="brand-mark">◩</span> everyday<span>tools</span></div><div class="header-note"><span class="green-dot"></span> Works in your browser · No file upload</div></header><main><section class="hero"><div class="eyebrow">ONE PLACE FOR SMALL TASKS</div><h1>Get the little things done.</h1><p>Compress a photo, edit a PDF, tidy text and more. Files stay on your device; processing happens in your browser.</p><div class="hero-count"><b>30</b> ready-to-use tools <span>·</span> Images, PDFs and text</div></section><div class="app-grid"><section class="catalog" aria-label="Tool catalog"><div class="catalog-heading"><div><p class="eyebrow">YOUR TOOLBOX</p><h2>Find a tool</h2></div><span class="count">30 tools</span></div><input class="search" id="search" type="search" placeholder="Search tools..." aria-label="Search tools"><div class="filters" role="group" aria-label="Filter tools">${['All','Images','PDF','Text'].map(x=>`<button data-category="${x}" class="${x==='All'?'active':''}">${x}</button>`).join('')}</div><div id="cards" class="cards"></div></section><section id="workspace" class="workspace" aria-label="Selected tool"><div class="workspace-top"><span id="tool-category" class="eyebrow"></span><span class="local-badge">⌁ LOCAL PROCESSING</span></div><h2 id="tool-title"></h2><p id="tool-desc"></p><form id="tool-form"></form><div id="status" class="status" role="status" aria-live="polite"></div><div class="privacy">🔒 Your files are processed locally. Passwords are never sent to a server. Keep the original until you check the downloaded result.</div></section></div></main><footer><span>Everyday Tools</span><span>Built for quick jobs, right in your browser.</span></footer>`;
+$('#app').innerHTML=`<header class="site-header"><div class="brand"><span class="brand-mark">◩</span> everyday<span>tools</span></div><div class="header-note"><span class="green-dot"></span> Works in your browser · No file upload</div></header><main><section class="hero"><div class="eyebrow">ONE PLACE FOR SMALL TASKS</div><h1>Get the little things done.</h1><p>Compress a photo, work with PDFs, tidy text and more. Files stay on your device; processing happens in your browser.</p><div class="hero-count"><b>48</b> ready-to-use tools <span>·</span> Images, PDFs, files and text</div></section><div class="app-grid"><section class="catalog" aria-label="Tool catalog"><div class="catalog-heading"><div><p class="eyebrow">YOUR TOOLBOX</p><h2>Find a tool</h2></div><span class="count">48 tools</span></div><input class="search" id="search" type="search" placeholder="Search tools..." aria-label="Search tools"><div class="filters" role="group" aria-label="Filter tools">${['All','Images','PDF','Text','Files','Utility'].map(x=>`<button data-category="${x}" class="${x==='All'?'active':''}">${x}</button>`).join('')}</div><div id="cards" class="cards"></div></section><section id="workspace" class="workspace" aria-label="Selected tool"><div class="workspace-top"><span id="tool-category" class="eyebrow"></span><span class="local-badge">⌁ LOCAL PROCESSING</span></div><h2 id="tool-title"></h2><p id="tool-desc"></p><form id="tool-form"></form><div id="status" class="status" role="status" aria-live="polite"></div><div class="privacy">🔒 Your files are processed locally. Passwords are never sent to a server. Keep the original until you check the downloaded result.</div></section></div></main><footer><span>Everyday Tools</span><span>Built for quick jobs, right in your browser.</span></footer>`;
 $('#cards').addEventListener('click',e=>{const card=e.target.closest('[data-id]');if(card)open(card.dataset.id)});
 $('#search').addEventListener('input',e=>{search=e.target.value.trim().toLowerCase();renderCards()});
 $('.filters').addEventListener('click',e=>{const btn=e.target.closest('[data-category]');if(!btn)return;category=btn.dataset.category;document.querySelectorAll('.filters button').forEach(b=>b.classList.toggle('active',b===btn));renderCards()});
@@ -97,7 +127,7 @@ $('#tool-form').addEventListener('submit',async e=>{
   const data=new FormData(form),opts=Object.fromEntries(data.entries());opts.keepRatio=!!form.elements.keepRatio?.checked; opts.flip=!!form.elements.flip?.checked;
   const files=Array.from(form.elements.files?.files||[]);
   btn.disabled=true; status.className='status';status.textContent='Working on your device...';
-  try {const result=await runTool(current,files,opts);status.className='status success';status.textContent=result;}
+  try {const result=extraIds.has(current)?await (await import('./extra.js')).runExtra(current,files,opts):await (await import('./engine.js')).runTool(current,files,opts);status.className='status success';status.textContent=result;}
   catch(error){status.className='status error';status.textContent=error.message||'Something went wrong. Check your file and try again.';console.error(error);}
   finally{btn.disabled=false;}
 });
