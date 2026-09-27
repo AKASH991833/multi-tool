@@ -1,6 +1,7 @@
+import { reportOutput } from './metrics.js';
 import JSZip from 'jszip';
 const makeBlob = (data,type='text/plain') => new Blob([data],{type});
-const download = (data,name,type) => {const blob=data instanceof Blob?data:makeBlob(data,type);const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)};
+const download = (data,name,type) => {const blob=data instanceof Blob?data:makeBlob(data,type);reportOutput(name,blob);const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)};
 const slug = n=>n.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9._-]/g,'-').slice(0,72)||'file';
 const textFile = (text,name)=>{download(text,name,'text/plain');return 'Result downloaded';};
 const esc = v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
