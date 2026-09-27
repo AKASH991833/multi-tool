@@ -1,31 +1,4 @@
-import './style.css';
-const tools = [
-  ['Images','compress','Compress photo','Reduce file size, optionally downscale'],
-  ['Images','convert','Convert image','Make JPG, PNG or WebP'],
-  ['Images','resize','Resize image','Choose width and height'],
-  ['Images','crop','Crop image','Crop from the top-left corner'],
-  ['Images','rotate-image','Rotate / flip image','Turn and mirror pictures'],
-  ['Images','image-pdf','Images to PDF','One image per page'],
-  ['Images','grayscale','Grayscale images','Remove colors from images'],
-  ['Images','image-watermark','Watermark images','Add centered text to an image'],
-  ['PDF','pdf-images','PDF to images','Export pages as PNG or JPG'],
-  ['PDF','merge','Merge PDFs','Combine in upload order'],
-  ['PDF','split','Split PDF','Download each page separately'],
-  ['PDF','extract','Extract PDF pages','Choose a page range'],
-  ['PDF','reorder','Reorder PDF pages','List pages in new order'],
-  ['PDF','rotate-pdf','Rotate PDF pages','Turn all or selected pages'],
-  ['PDF','protect','Password protect PDF','AES-256 encryption'],
-  ['PDF','unlock','Remove PDF password','Requires current password'],
-  ['PDF','change-password','Change PDF password','Requires current password'],
-  ['PDF','delete-pages','Delete PDF pages','Remove selected pages'],
-  ['PDF','reverse-pdf','Reverse PDF pages','Put the last page first'],
-  ['PDF','duplicate-page','Duplicate PDF page','Copy a selected page'],
-  ['PDF','pdf-watermark','Watermark PDF','Add centered text to each page'],
-  ['PDF','page-numbers','Number PDF pages','Add page numbers at the bottom'],
-  ['PDF','pdf-text','Extract PDF text','Text layer only, not scanned OCR'],
-  ['PDF','pdf-metadata','Edit PDF metadata','Change title, author and subject'],
-  ['Text','text-stats','Word counter','Words, characters and lines'],
-  ['Text','case','Change text case','Upper, lower, title or trim'],
+import { formatBytes } from './metrics.js';
 import './style.css';
 const tools = [
   ['Images','compress','Compress photo','Reduce file size, optionally downscale'],
