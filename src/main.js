@@ -26,6 +26,34 @@ const tools = [
   ['PDF','pdf-metadata','Edit PDF metadata','Change title, author and subject'],
   ['Text','text-stats','Word counter','Words, characters and lines'],
   ['Text','case','Change text case','Upper, lower, title or trim'],
+import './style.css';
+const tools = [
+  ['Images','compress','Compress photo','Reduce file size, optionally downscale'],
+  ['Images','convert','Convert image','Make JPG, PNG or WebP'],
+  ['Images','resize','Resize image','Choose width and height'],
+  ['Images','crop','Crop image','Crop from the top-left corner'],
+  ['Images','rotate-image','Rotate / flip image','Turn and mirror pictures'],
+  ['Images','image-pdf','Images to PDF','One image per page'],
+  ['Images','grayscale','Grayscale images','Remove colors from images'],
+  ['Images','image-watermark','Watermark images','Add centered text to an image'],
+  ['PDF','pdf-images','PDF to images','Export pages as PNG or JPG'],
+  ['PDF','merge','Merge PDFs','Combine in upload order'],
+  ['PDF','split','Split PDF','Download each page separately'],
+  ['PDF','extract','Extract PDF pages','Choose a page range'],
+  ['PDF','reorder','Reorder PDF pages','List pages in new order'],
+  ['PDF','rotate-pdf','Rotate PDF pages','Turn all or selected pages'],
+  ['PDF','protect','Password protect PDF','AES-256 encryption'],
+  ['PDF','unlock','Remove PDF password','Requires current password'],
+  ['PDF','change-password','Change PDF password','Requires current password'],
+  ['PDF','delete-pages','Delete PDF pages','Remove selected pages'],
+  ['PDF','reverse-pdf','Reverse PDF pages','Put the last page first'],
+  ['PDF','duplicate-page','Duplicate PDF page','Copy a selected page'],
+  ['PDF','pdf-watermark','Watermark PDF','Add centered text to each page'],
+  ['PDF','page-numbers','Number PDF pages','Add page numbers at the bottom'],
+  ['PDF','pdf-text','Extract PDF text','Text layer only, not scanned OCR'],
+  ['PDF','pdf-metadata','Edit PDF metadata','Change title, author and subject'],
+  ['Text','text-stats','Word counter','Words, characters and lines'],
+  ['Text','case','Change text case','Upper, lower, title or trim'],
   ['Text','json','JSON formatter','Pretty print or minify JSON'],
   ['Text','password','Password generator','Create a random password'],
   ['Text','duplicate-lines','Remove duplicate lines','Keep the first occurrence'],
@@ -69,7 +97,7 @@ function fields(id) {
   const textBox = '<label>Text<textarea name="text" rows="8" placeholder="Paste your text here"></textarea></label>';
   const fileAny = '<label class="drop"><span>Choose files</span><input name="files" type="file" multiple required><small id="files-hint">Nothing selected</small></label>'; 
   const map = {
-    compress:width+quality, convert:formats+quality, resize:width+height+'<label class="check"><input type="checkbox" name="keepRatio" checked> Keep original proportions</label>'+quality,
+    compress:width+quality+input('targetKB','Target maximum size (KB, optional)','', 'number','min="1" max="102400" placeholder="e.g. 100"')+'<p class="hint">A target is best effort. If the target is not reached, the actual size will be shown. Smaller files may lose detail.</p>', convert:formats+quality, resize:width+height+'<label class="check"><input type="checkbox" name="keepRatio" checked> Keep original proportions</label>'+quality,
     crop:width+height, 'rotate-image':angle+'<label class="check"><input type="checkbox" name="flip"> Flip horizontally</label>',
     grayscale:'<p class="hint">Output keeps the original image format where supported.</p>',
     'image-watermark':input('text','Watermark text',''),
@@ -113,7 +141,7 @@ function open(id){
   $('#tool-category').textContent=tool[0]; $('#tool-title').textContent=tool[2]; $('#tool-desc').textContent=tool[3];
   $('#tool-form').innerHTML=fields(id)+`<button id="run" type="submit">${id==='text-stats'?'Count':id==='case'||id==='password'?'Copy result':'Make and download'} <span>→</span></button>`;
   $('#status').textContent=''; $('#status').className='status';
-  $('#tool-form [name=files]')?.addEventListener('change',e=>$('#files-hint').textContent=Array.from(e.target.files).map(f=>f.name).join(', ') || 'Nothing selected');
+  $('#tool-form [name=files]')?.addEventListener('change',e=>{const selected=Array.from(e.target.files);$('#files-hint').textContent=selected.length ? selected.map(f=>`${f.name} (${formatBytes(f.size)})`).join(', ') + ` · Total ${formatBytes(selected.reduce((sum,f)=>sum+f.size,0))}` : 'Nothing selected';});
   const ratio=$('#tool-form [name=keepRatio]'), height=$('#tool-form [name=height]');
   if(ratio&&height){height.disabled=true;ratio.onchange=()=>height.disabled=ratio.checked;}
   renderCards(); if(window.innerWidth<900) $('#workspace').scrollIntoView({behavior:'smooth',block:'start'});
@@ -126,9 +154,24 @@ $('#tool-form').addEventListener('submit',async e=>{
   e.preventDefault();const form=e.currentTarget,btn=$('#run'), status=$('#status');
   const data=new FormData(form),opts=Object.fromEntries(data.entries());opts.keepRatio=!!form.elements.keepRatio?.checked; opts.flip=!!form.elements.flip?.checked;
   const files=Array.from(form.elements.files?.files||[]);
+  const inputBytes=files.length ? files.reduce((sum,f)=>sum+f.size,0) : form.elements.text ? new TextEncoder().encode(opts.text||'').length : null;
+  const outputs=[];const onOutput=e=>outputs.push(e.detail);window.addEventListener('tool-output',onOutput);
   btn.disabled=true; status.className='status';status.textContent='Working on your device...';
-  try {const result=extraIds.has(current)?await (await import('./extra.js')).runExtra(current,files,opts):await (await import('./engine.js')).runTool(current,files,opts);status.className='status success';status.textContent=result;}
+  try {const result=extraIds.has(current)?await (await import('./extra.js')).runExtra(current,files,opts):await (await import('./engine.js')).runTool(current,files,opts);status.className='status success';
+    if(outputs.length) {
+      const outputBytes=outputs.reduce((sum,o)=>sum+o.bytes,0);
+      const comparison=inputBytes === null || inputBytes === 0 ? 'No source size to compare' :
+        outputBytes === inputBytes ? 'Same size (0.0% change)' :
+        `${(Math.abs(outputBytes-inputBytes)/inputBytes*100).toFixed(1)}% ${outputBytes < inputBytes ? 'smaller' : 'larger'}`;
+      const targetBytes=current==='compress' && opts.targetKB?.trim() ? Number(opts.targetKB)*1024 : null;
+      const items=outputs.flatMap(o=>o.items||[]);
+      const target=targetBytes === null ? '' : items.length > 0
+        ? ` · ${items.filter(item=>item.bytes<=targetBytes).length}/${items.length} images met ${formatBytes(targetBytes)} target${items.some(item=>item.bytes>targetBytes)?' (best effort)':''}`
+        : ` · ${outputBytes <= targetBytes ? 'Target met' : 'Target not met (best effort)'}`;
+      const details=items.length ? ` · Files: ${items.map(item=>`${item.name} ${formatBytes(item.bytes)}`).join(', ')}` : '';
+      status.textContent=`${result} · Input ${inputBytes === null ? 'none' : formatBytes(inputBytes)} · Download ${formatBytes(outputBytes)} · ${comparison}${target}${details}`;
+    } else status.textContent=result;}
   catch(error){status.className='status error';status.textContent=error.message||'Something went wrong. Check your file and try again.';console.error(error);}
-  finally{btn.disabled=false;}
+  finally{window.removeEventListener('tool-output',onOutput);btn.disabled=false;}
 });
 open(current);
