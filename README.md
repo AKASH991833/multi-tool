@@ -7,7 +7,7 @@ A browser-only collection of everyday image, PDF and text tools. Files are proce
 | Area | Tools |
 | --- | --- |
 | Images | Compress photo, convert JPG/PNG/WebP, resize, top-left crop, rotate/flip, images to PDF, grayscale images, watermark images |
-| PDF | PDF pages to PNG/JPG, merge, split, extract, reorder, rotate, password protect (AES-256), unlock with current password, change password with current password, reorder pages, delete pages, reverse pages, duplicate a page, watermark, add page numbers, extract PDF text, change metadata |
+| PDF | PDF pages to PNG/JPG, merge, split, extract, reorder, rotate, password protect (AES-256), unlock with current password, change password with current password, delete pages, reverse pages, duplicate a page, watermark, add page numbers, extract PDF text, change metadata |
 | Text | Word/character/line counter, case changer, JSON pretty print/minify, random password generator, remove duplicate lines, URL encode/decode |
 
 30 working tools. Password operations use qpdf compiled to WebAssembly; other PDF work uses pdf-lib and PDF.js. Multiple output files download as ZIP. A mobile-friendly responsive interface is included.

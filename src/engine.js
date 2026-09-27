@@ -51,7 +51,7 @@ async function embedImage(doc, file) {
   return doc.embedPng(png);
 }
 let qpdfRunner;
-async function qpdf(file, args, password, outputName) {
+async function qpdf(file, args, outputName) {
   if (!qpdfRunner) qpdfRunner = await createQpdfRunner({ workerUrl: qpdfWorkerUrl, qpdfJsUrl, wasmUrl, timeoutMs: 60000 });
   try {
     const input = await bytes(file);
@@ -106,9 +106,9 @@ export async function runTool(id, files, opts) {
       const old = opts.password || '', next = opts.newPassword || '';
       if (id !== 'protect' && !old) throw new Error('Enter the current PDF password.');
       if (id !== 'unlock' && !next) throw new Error('Enter the new PDF password.');
-      if (id === 'protect') return qpdf(file, ['--encrypt', next, next, '256', '--', 'input.pdf', 'protected.pdf'], '', 'protected.pdf');
-      if (id === 'unlock') return qpdf(file, [`--password=${old}`, '--decrypt', '--', 'input.pdf', 'unlocked.pdf'], old, 'unlocked.pdf');
-      return qpdf(file, [`--password=${old}`, '--encrypt', next, next, '256', '--', 'input.pdf', 'new-password.pdf'], old, 'new-password.pdf');
+      if (id === 'protect') return qpdf(file, ['--encrypt', next, next, '256', '--', 'input.pdf', 'protected.pdf'], 'protected.pdf');
+      if (id === 'unlock') return qpdf(file, [`--password=${old}`, '--decrypt', '--', 'input.pdf', 'unlocked.pdf'], 'unlocked.pdf');
+      return qpdf(file, [`--password=${old}`, '--encrypt', next, next, '256', '--', 'input.pdf', 'new-password.pdf'], 'new-password.pdf');
     }
     if (id === 'pdf-text') { const source=await pdfjs.getDocument({data:await bytes(file),useSystemFonts:true}).promise; const parts=[]; try{for(let n=1;n<=source.numPages;n++){const content=await (await source.getPage(n)).getTextContent();parts.push(`--- Page ${n} ---\n`+content.items.map(i=>i.str).join(' '));}}finally{await source.destroy();}save(new Blob([parts.join('\n\n')],{type:'text/plain'}),`${stem(file.name)}.txt`,'text/plain');return `${parts.length} page(s) exported as text (OCR not included)`; }
     if (id === 'pdf-images') {
