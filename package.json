@@ -1,0 +1,22 @@
+{
+  "name": "multi-tool",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node test.mjs"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.4.296",
+    "qpdf-run": "^0.2.1",
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "vite": "^7.3.1",
+    "playwright": "^1.55.0"
+  }
+}
