@@ -20,7 +20,7 @@ One home for every tool and website I have built. Every link below is live and f
 ![PDF Editor](screenshots/shot-pdf-editor.png)
 
 ### 2. Documents & Projects Creator
-**Open:** https://akash991833.github.io/project-sutra/
+**Open:** https://project-sutra-three.vercel.app
 
 Turn your notes and content into a submission-ready assignment, project report or black book. Pick a template, paste your content, preview, export as PDF or Word. Free, no sign-in.
 
